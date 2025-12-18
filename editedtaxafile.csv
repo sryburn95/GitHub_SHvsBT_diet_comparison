@@ -1,0 +1,34 @@
+ASV,superkingdom,phylum,class,order,family,genus,species,Trophic_level,Trophic_level_SE,Environment,Prey_depth,Prey_diet,Endemic to Galapagos,Known to be in Galapagos,IUCN Status
+Carcharhinus genus 1,Eukaryota,Chordata,Chondrichthyes,Carcharhiniformes,Carcharhinidae,Carcharhinus,Carcharhinus genus,,,,,Carnivore,N,Y,
+Sphyrna lewini 1,Eukaryota,Chordata,Chondrichthyes,Carcharhiniformes,Carcharhinidae,Sphyrna,Sphyrna lewini,4.1,0.5,Marine; brackish; pelagic-oceanic; oceanodromous,pelagic-oceanic,Carnivore,N,Y,Critically endangered
+Stegastes arcifrons 1,Eukaryota,Chordata,Actinopteri,Actinopteri class,Pomacentridae,Stegastes,Stegastes arcifrons,3,0.39,Marine; reef-associated; non-migratory,reef-associated,Herbivore,N,Y,Least concern
+Abudefduf genus 1,Eukaryota,Chordata,Actinopteri,Actinopteri class,Pomacentridae,Abudefduf,Abudefduf genus,,,,,Omnivore,N,Y,
+Mugil thoburni 1,Eukaryota,Chordata,Actinopteri,Mugiliformes,Mugilidae,Mugil,Mugil thoburni,2.3,0,Marine; pelagic-neritic,pelagic-neritic,Omnivore,Y,Y,Least concern
+Mugil cephalus 1,Eukaryota,Chordata,Actinopteri,Mugiliformes,Mugilidae,Mugil,Mugil cephalus,2.5,0.17,Marine; freshwater; brackish; benthopelagic; catadromous,benthopelagic,Omnivore,N,Y,Least concern
+Decapterus genus 1,Eukaryota,Chordata,Actinopteri,Carangiformes,Carangidae,Decapterus,Decapterus genus,,,,,Carnivore,N,Y,
+Hemiramphus lutkei 1,Eukaryota,Chordata,Actinopteri,Beloniformes,Hemiramphidae,Hemiramphus,Hemiramphus lutkei,3.4,0.5,Marine; brackish; reef-associated,reef-associated,Omnivore,N,Y,Not evaluated
+Stegastes beebei 1,Eukaryota,Chordata,Actinopteri,Actinopteri class,Pomacentridae,Stegastes,Stegastes beebei,3,0.44,Marine; reef-associated; non-migratory,reef-associated,Omnivore,N,Y,Least concern
+Sphoeroides annulatus 1,Eukaryota,Chordata,Actinopteri,Tetraodontiformes,Tetraodontidae,Sphoeroides,Sphoeroides annulatus,3.1,0.44,Marine; brackish; reef-associated,reef-associated,Carnivore,N,Y,Least concern
+Actinopteri class 1,Eukaryota,Chordata,Actinopteri,Actinopteri class,Actinopteri class,Actinopteri class,Actinopteri class,,,,,,N,Y,
+Sardinops genus 1,Eukaryota,Chordata,Actinopteri,Clupeiformes,Clupeidae,Sardinops,Sardinops genus,,,,,Planktivore,N,Y,
+Euthynnus affinis 1,Eukaryota,Chordata,Actinopteri,Scombriformes,Scombridae,Euthynnus,Euthynnus affinis,4.5,0,Marine; pelagic-neritic; oceanodromous,pelagic-neritic,Carnivore,N,Y,Least concern
+Scarus ghobban 1,Eukaryota,Chordata,Actinopteri,Labriformes,Labridae,Scarus,Scarus ghobban,2,0,Marine; brackish; reef-associated,reef-associated,Herbivore,N,Y,Least concern
+Abudefduf taurus 1,Eukaryota,Chordata,Actinopteri,Actinopteri class,Pomacentridae,Abudefduf,Abudefduf taurus,2.1,0.1,Marine; reef-associated; non-migratory,reef-associated,Omnivore,N,N,Least concern
+Anisotremus scapularis 1,Eukaryota,Chordata,Actinopteri,Lutjaniformes,Haemulidae,Anisotremus,Anisotremus scapularis,3.7,0,Marine; reef-associated,reef-associated,Carnivore,N,Y,Least concern
+Muraena lentiginosa 1,Eukaryota,Chordata,Actinopteri,Anguilliformes,Muraenidae,Muraena,Muraena lentiginosa,3.9,0.61,Marine; reef-associated,reef-associated,Carnivore,N,Y,Least concern
+Caranx crysos 1,Eukaryota,Chordata,Actinopteri,Carangiformes,Carangidae,Caranx,Caranx crysos,4.1,0.4,Marine; brackish; reef-associated,reef-associated,Carnivore,N,Y,Least concern
+Lutjanus genus 1,Eukaryota,Chordata,Actinopteri,Lutjaniformes,Lutjanidae,Lutjanus,Lutjanus genus,,,,,Carnivore,N,Y,
+Teleophrys cristulipes 1,Eukaryota,Arthropoda,Malacostraca,Decapoda,Mithracidae,Teleophrys,Teleophrys cristulipes,,,Marine; benthic,benthic,,N,Y,Not evaluated
+Grapsus grapsus 1,Eukaryota,Arthropoda,Malacostraca,Decapoda,Grapsidae,Grapsus,Grapsus grapsus,,,Intertidal,benthic,Carnivore,N,Y,Not evaluated
+Pachygrapsus socius 1,Eukaryota,Arthropoda,Malacostraca,Decapoda,Grapsidae,Pachygrapsus,Pachygrapsus socius,,,Intertidal,benthic,,N,Y,Not evaluated
+Amphipholis squamata 1,Eukaryota,Echinodermata,Ophiuroidea,Amphilepidida,Amphiuridae,Amphipholis,Amphipholis squamata,,,Reef-associated; brackish; benthic,reef-associated,Omnivore,N,Y,Not evaluated
+Calappa convexa 1,Eukaryota,Arthropoda,Malacostraca,Decapoda,Calappidae,Calappa,Calappa convexa,,,,,Carnivore,N,Y,
+Cyprinodon variegatus 1,Eukaryota,Chordata,Actinopteri,Cyprinodontiformes,Cyprinodontidae,Cyprinodon,Cyprinodon variegatus,2.4,0.1,Marine; freshwater; brackish; benthopelagic; non-migratory,benthopelagic,Omnivore,N,N,Least concern
+Thunnus genus 1,Eukaryota,Chordata,Actinopteri,Scombriformes,Scombridae,Thunnus,Thunnus genus,,,,,Carnivore,N,Y,
+Selar crumenophthalmus 1,Eukaryota,Chordata,Actinopteri,Carangiformes,Carangidae,Selar,Selar crumenophthalmus,3.8,0.2,Marine; reef-associated,reef-associated,Carnivore,N,Y,Least concern
+Fistularia commersonii 1,Eukaryota,Chordata,Actinopteri,Syngnathiformes,Fistulariidae,Fistularia,Fistularia commersonii,4.3,0.7,Marine; reef-associated,reef-associated,Carnivore,N,Y,Least concern
+Semicossyphus pulcher 1,Eukaryota,Chordata,Actinopteri,Labriformes,Labridae,Semicossyphus,Semicossyphus pulcher,3.6,0.43,Marine; reef-associated,reef-associated,Carnivore,N,Y,Vulnerable
+Meiosquilla dawsoni 1,Eukaryota,Arthropoda,Malacostraca,Stomatopoda,Squillidae,Meiosquilla,Meiosquilla dawsoni,,,Benthic,benthic,,N,Y,Not evaluated
+Achelous tuberculatus 1,Eukaryota,Arthropoda,Malacostraca,Decapoda,Portunidae,Achelous,Achelous tuberculatus,,,,,,N,Y,Not evaluated
+Palaemon ritteri 1,Eukaryota,Arthropoda,Malacostraca,Decapoda,Palaemonidae,Palaemon,Palaemon ritteri,,,Benthopelagic,benthopelagic,,N,Y,Not evaluated
+Microcassiope xantusii 1,Eukaryota,Arthropoda,Malacostraca,Decapoda,Xanthidae,Microcassiope,Microcassiope xantusii,,,,,,N,Y,Not evaluated

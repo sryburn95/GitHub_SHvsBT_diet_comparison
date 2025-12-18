@@ -1,0 +1,1626 @@
+---
+title: "Galapagos_SH&BT_Final"
+author: "Savannah Ryburn"
+date: "2025-12-18"
+output: html_document
+---
+
+Loading packages
+```{r}
+library(phyloseq)
+library(ggplot2)
+library(tibble)
+library(dplyr)
+library(tidyverse)
+library(vegan)
+library(tidyr)
+library(car)
+library(rstatix)
+library(devtools)
+library(pairwiseAdonis)
+library(spaa)
+library(dietr)
+library(ggridges)
+
+#install.packages("ggraph") # for taxatree_plots()
+#install.packages("DT") # for tax_fix_interactive()
+#install.packages("corncob") # for example datasets and beta binomial models
+#if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
+#BiocManager::install(c("phyloseq", "microbiome", "ComplexHeatmap"), update = FALSE)
+
+#install.packages(
+#  "microViz",
+#  repos = c(davidbarnett = "https://david-barnett.r-universe.dev", getOption("repos"))
+#)
+library(microViz)
+library(ggraph)
+library(DT)
+library(corncob)
+
+#install.packages("remotes")
+#remotes::install_github("vmikk/metagMisc")
+library(metagMisc)
+```
+
+Load phyloseq object of just fecal swabs made in script 10
+```{r}
+Gal_Shark_Diet.ps<-readRDS(file = "/Users/savannahryburn/Desktop/Galapagos_Sharks/10_Phyloseq/Gal_Shark_Diet.ps.RDS")
+
+Gal_Shark_Diet.ps
+```
+
+Combine OTUs from the two fish species that weren't present in the Galapagos with the lowest taxonomic group
+```{r}
+# New phyloseq object so I don't mess up the old one
+Gal_Shark_Diet.ps.new1 <- Gal_Shark_Diet.ps
+
+# Extract matrix safely
+otu_mat <- as(otu_table(Gal_Shark_Diet.ps.new1), "matrix")
+
+# Double-check the OTU names (Make sure this returns exactly: "Abudefduf genus 1"  "Abudefduf taurus 1")
+grep("Abudefduf", rownames(otu_mat), value = TRUE)
+
+# save them explicitly:
+otu1 <- "Abudefduf genus 1"
+otu2 <- "Abudefduf taurus 1"
+
+# Sum the two OTUs into a new named row
+# Check if both OTUs exist
+if (all(c(otu1, otu2) %in% rownames(otu_mat))) {
+  new_otu_row <- otu_mat[otu1, ] + otu_mat[otu2, ]
+  # Add the new row
+  otu_mat <- rbind(otu_mat, "Abudefduf" = new_otu_row)
+  # Remove the original two
+  otu_mat <- otu_mat[!rownames(otu_mat) %in% c(otu1, otu2), ]
+} else {
+  stop("One or both OTU names not found!")
+}
+
+nrow(otu_mat)  # should be 32
+
+# Rebuild OTU table (make sure it has the right orientation)
+otu_tab_new <- otu_table(otu_mat, taxa_are_rows = TRUE)
+
+# Replace the OTU table in your phyloseq object
+Gal_Shark_Diet.ps.new1 <- phyloseq(
+  otu_tab_new,
+  tax_table(Gal_Shark_Diet.ps.new1),
+  sample_data(Gal_Shark_Diet.ps.new1)
+)
+
+dim(otu_table(Gal_Shark_Diet.ps.new1))  # Should show 32 rows
+rownames(otu_table(Gal_Shark_Diet.ps.new1))  # Should include "Abudefduf"
+
+
+
+
+head(tax_table(Gal_Shark_Diet.ps.new1))
+
+# Manually create new row
+# Extract the existing tax table
+tax_mat <- as(tax_table(Gal_Shark_Diet.ps.new1), "matrix")
+
+# Create a new row (fill in with correct levels from your data structure)
+new_tax_row <- c(
+  Kingdom = "Eukaryota",
+  Phylum = "Chordata",
+  Class = "Actinopterygii",
+  Order = "Perciformes",
+  Family = "Pomacentridae",
+  Genus = "Abudefduf",
+  Species = "Abudefduf genus"  # or "Abudefduf spp." or leave NA
+)
+
+# Add the new row with the OTU name "Abudefduf"
+tax_mat <- rbind(tax_mat, "Abudefduf" = new_tax_row)
+
+# Recreate tax_table object
+new_tax_table <- tax_table(tax_mat)
+
+# Rebuild phyloseq object
+Gal_Shark_Diet.ps.new1 <- phyloseq(
+  otu_tab_new,
+  new_tax_table,
+  sample_data(Gal_Shark_Diet.ps.new1)
+)
+
+dim(otu_table(Gal_Shark_Diet.ps.new1))       # Should now be 32 x 172
+rownames(otu_table(Gal_Shark_Diet.ps.new1))  # Should include "Abudefduf"
+tax_table(Gal_Shark_Diet.ps.new1)["Abudefduf", ]  # Should show your new taxonomy
+
+View(Gal_Shark_Diet.ps.new1)
+View(Gal_Shark_Diet.ps.new1@tax_table)
+
+
+
+####### Now do this again for "Cyprinodon variegatus 1" and "Actinopteri class 1"
+
+# save them explicitly:
+otu3 <- "Cyprinodon variegatus 1"
+otu4 <- "Actinopteri class 1"
+
+# Sum the two OTUs into a new named row
+# Check if both OTUs exist
+if (all(c(otu3, otu4) %in% rownames(otu_mat))) {
+  new_otu_row <- otu_mat[otu3, ] + otu_mat[otu4, ]
+  # Add the new row
+  otu_mat <- rbind(otu_mat, "Actinopteri" = new_otu_row)
+  # Remove the original two
+  otu_mat <- otu_mat[!rownames(otu_mat) %in% c(otu3, otu4), ]
+} else {
+  stop("One or both OTU names not found!")
+}
+
+nrow(otu_mat)  # should be 31
+
+# Rebuild OTU table (make sure it has the right orientation)
+otu_tab_new <- otu_table(otu_mat, taxa_are_rows = TRUE)
+
+# Replace the OTU table in your phyloseq object
+Gal_Shark_Diet.ps.new1 <- phyloseq(
+  otu_tab_new,
+  tax_table(Gal_Shark_Diet.ps.new1),
+  sample_data(Gal_Shark_Diet.ps.new1)
+)
+
+dim(otu_table(Gal_Shark_Diet.ps.new1))  # Should show 32 rows
+rownames(otu_table(Gal_Shark_Diet.ps.new1))  # Should include "Abudefduf"
+
+
+head(tax_table(Gal_Shark_Diet.ps.new1))
+
+# Manually create new row
+# Extract the existing tax table
+tax_mat <- as(tax_table(Gal_Shark_Diet.ps.new1), "matrix")
+
+# Create a new row (fill in with correct levels from your data structure)
+new_tax_row <- c(
+  Kingdom = "Eukaryota",
+  Phylum = "Chordata",
+  Class = "Actinopteri",
+  Order = "Actinopteri class",
+  Family = "Actinopteri class",
+  Genus = "Actinopteri class",
+  Species = "Actinopteri class"
+)
+
+# Add the new row with the OTU name "Actinopteri"
+tax_mat <- rbind(tax_mat, "Actinopteri" = new_tax_row)
+
+# Recreate tax_table object
+new_tax_table <- tax_table(tax_mat)
+
+# Rebuild phyloseq object
+Gal_Shark_Diet.ps.new1 <- phyloseq(
+  otu_tab_new,
+  new_tax_table,
+  sample_data(Gal_Shark_Diet.ps.new1)
+)
+
+dim(otu_table(Gal_Shark_Diet.ps.new1))       # Should now be 31 x 172
+rownames(otu_table(Gal_Shark_Diet.ps.new1))  # Should include "Actinopteri"
+tax_table(Gal_Shark_Diet.ps.new1)["Actinopteri", ]  # Should show your new taxonomy
+
+View(Gal_Shark_Diet.ps.new1)
+View(Gal_Shark_Diet.ps.new1@tax_table)
+View(Gal_Shark_Diet.ps.new1@otu_table)
+```
+
+Divide blacktips and scalloped hammerheads
+```{r}
+Gal_Shark_Diet_SH.ps<-subset_samples(Gal_Shark_Diet.ps.new1,Species..scientific.name.=="Sphyrna lewini")
+View(Gal_Shark_Diet_SH.ps)
+
+Gal_Shark_Diet_BT.ps<-subset_samples(Gal_Shark_Diet.ps.new1,Species..scientific.name.=="Carcharhinus limbatus")
+View(Gal_Shark_Diet_BT.ps)
+```
+
+Filter out host DNA
+```{r}
+##Scalloped Hammerheads
+tax_table(Gal_Shark_Diet_SH.ps)
+
+# Exclude "Carcharhinus genus"
+Gal_Shark_Diet_SH.ps <- subset_taxa(Gal_Shark_Diet_SH.ps, species != "Sphyrna lewini")
+
+View(Gal_Shark_Diet_SH.ps)
+
+
+##Blacktips
+tax_table(Gal_Shark_Diet_BT.ps)
+
+# Exclude "Carcharhinus genus"
+Gal_Shark_Diet_BT.ps <- subset_taxa(Gal_Shark_Diet_BT.ps, species != "Carcharhinus genus")
+
+View(Gal_Shark_Diet_BT.ps)
+```
+
+Divide Blacktips by Sites (only include Puerto Grande and Cartago Bay)
+```{r}
+Gal_Shark_Diet_BT_PGCB.ps <- subset_samples(Gal_Shark_Diet_BT.ps, Site.Name %in% c("Puerto Grande", "Cartago Bay"))
+View(Gal_Shark_Diet_BT_PGCB.ps)
+```
+
+Combine phyloseq objects for SH and BT (blacktips only from PG and CB)
+```{r}
+Combined_Gal_Shark_Diet.ps <- merge_phyloseq(Gal_Shark_Diet_SH.ps, Gal_Shark_Diet_BT_PGCB.ps)
+```
+
+Remove all samples with no results (blacktips only from PG and CB)
+```{r}
+samples_to_remove <- c("con_G15", "con_G31", "con_G43", "G105", "G106", "G109", "G116", "G117", "G121", "G125", "G127", "G128", "G129", "G134", "G163", "G166", "G190", "G082", "G083", "G084", "G086", "G088", "G090", "G092", "G093", "G095", "G096", "G097", "G143", "G151", "G153", "G154", "G156", "G158", "G168", "G173", "G177", "G178", "G180", "G182", "G184", "G185")
+
+Combined_Gal_Shark_Diet_filtered.ps <- prune_samples(!(sample_names(Combined_Gal_Shark_Diet.ps) %in% samples_to_remove), Combined_Gal_Shark_Diet.ps)
+```
+
+Divide Blacktips by Sites (only include Puerto Grande, Cartago Bay, La Seca, and Grimanesa)
+```{r}
+Gal_Shark_Diet_BT_PGCBLSGR.ps <- subset_samples(Gal_Shark_Diet_BT.ps, Site.Name %in% c("Puerto Grande", "Cartago Bay", "La Seca", "Grimanesa"))
+View(Gal_Shark_Diet_BT_PGCBLSGR.ps)
+```
+
+Combine phyloseq objects for SH and BT (blacktips from PG, CB, LS, and GR)
+```{r}
+Combined_Gal_Shark_Diet_PGCBLSGR.ps <- merge_phyloseq(Gal_Shark_Diet_SH.ps, Gal_Shark_Diet_BT_PGCBLSGR.ps)
+```
+
+Remove all samples with no results (blacktips from PG, CB, LS, and GR)
+```{r}
+samples_to_remove <- c("con_G15", "con_G31", "con_G43", "G105", "G106", "G109", "G116", "G117", "G121", "G125", "G127", "G128", "G129", "G134", "G163", "G166", "G190", "G082", "G083", "G084", "G086", "G088", "G090", "G092", "G093", "G095", "G096", "G097", "G143", "G151", "G153", "G154", "G156", "G158", "G168", "G173", "G177", "G178", "G180", "G182", "G184", "G185")
+
+Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps <- prune_samples(!(sample_names(Combined_Gal_Shark_Diet_PGCBLSGR.ps) %in% samples_to_remove), Combined_Gal_Shark_Diet_PGCBLSGR.ps)
+```
+
+Make files to upload to FigShare for journal submission
+```{r}
+Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.df <- as.data.frame(cbind(sample_data(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps)))
+View(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.df)
+write.csv(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.df, "./Chapter4sd")
+
+Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.tt <- as.data.frame(cbind(tax_table(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps)))
+View(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.tt)
+write.csv(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.tt, "./Chapter4tt")
+
+Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.otu <- as.data.frame(cbind(otu_table(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps)))
+View(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.otu)
+write.csv(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.otu, "./Chapter4otu")
+```
+
+Make a Final Taxa Table with the number of reads assigned to each genus or species (Blacktips)
+```{r}
+#merge motus by prey species - I don't think I need this because I did this in script 10
+#NC_Shark_prey_species_merge.ps <- tax_glom(NC_Sharks1.ps, taxrank = "species", NArm = FALSE)
+
+sample_variables(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps)
+rank_names(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps)
+
+#export read table with species or genus (if only genus available) instead of motu/asv now that they've been properly merged
+taxtbl <- as.data.frame(tax_table(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps))
+otutbl<-as.data.frame(otu_table(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps))
+sampletbl<-as.data.frame(sample_data(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps))
+
+otutbl$species <-
+  taxtbl$species[match(rownames(otutbl),rownames(taxtbl))]
+
+otutbl$genus <-
+  taxtbl$genus[match(rownames(otutbl),rownames(taxtbl))]
+
+df<-otutbl %>% relocate(genus)
+df<-df %>% relocate(species, .after = genus)
+
+df1<- as.data.frame(t(df))
+
+df1<- rownames_to_column(df1, var="sample")
+samples.df.1<-rownames_to_column(sampletbl, var="sample")
+df2<- left_join(df1, samples.df.1, by ="sample")
+
+colnames(df2)
+
+df3<- df2 %>% select(-"type",-"control_type",-"nb_reads.x",-"nb_motus.x",-"seqdepth_ok.x",-"nb_reads_postmetabaR.x",-"nb_motus_postmetabaR.x",-"nb_reads.y",-"nb_motus.y",-"seqdepth_ok.y",-"nb_reads_postmetabaR.y",-"nb_motus_postmetabaR.y")
+
+colnames(df3)
+
+write.csv(df3, "Gal_BT_samples_by_species_combined_table.csv")
+
+#Flip axis of the data frame
+transformed_df3 <- t(df3)
+write.csv(transformed_df3, "Gal_BT_samples_by_species_combined_table_flipped.csv")
+
+################################################################################################################
+
+#Make table that includes family and order too
+otutbl$species <-
+  taxtbl$species[match(rownames(otutbl),rownames(taxtbl))]
+
+otutbl$genus <-
+  taxtbl$genus[match(rownames(otutbl),rownames(taxtbl))]
+
+otutbl$family <-
+  taxtbl$family[match(rownames(otutbl),rownames(taxtbl))]
+
+otutbl$order <-
+  taxtbl$order[match(rownames(otutbl),rownames(taxtbl))]
+
+df<-otutbl %>% relocate(species) %>% relocate(genus) %>% relocate(family) %>% relocate(order)
+#df<-df %>% relocate(species, .after = genus)
+
+df1<- as.data.frame(t(df))
+
+df1<- rownames_to_column(df1, var="sample")
+samples.df.1<-rownames_to_column(sampletbl, var="sample")
+df2<- left_join(df1, samples.df.1, by ="sample")
+
+colnames(df2)
+
+df3<- df2 %>% select(-"type",-"control_type",-"nb_reads.x",-"nb_motus.x",-"seqdepth_ok.x",-"nb_reads_postmetabaR.x",-"nb_motus_postmetabaR.x",-"nb_reads.y",-"nb_motus.y",-"seqdepth_ok.y",-"nb_reads_postmetabaR.y",-"nb_motus_postmetabaR.y")
+
+colnames(df3)
+
+write.csv(df3, "Gal_BT_samples_by_species_combined_table_with familyand order.csv")
+
+#edited_df3 <- read.csv("../Chapter3/Gal_BT_samples_by_species_combined_table_with familyand order_edited.csv")
+#View(edited_df3)
+
+#Flip axis of the data frame
+#transformed_edited_df3 <- t(edited_df3)
+#write.csv(transformed_edited_df3, "Gal_BT_samples_by_species_combined_table_with familyand order_edited_flipped.csv")
+```
+
+POO percentages for just scalloped hammerheads from PG and CB
+```{r}
+#Now only scalloped hammerheads - this is FOO
+Combined_Gal_Shark_Diet.ps.SH<-subset_samples(Combined_Gal_Shark_Diet.ps,Species..scientific.name.=="Sphyrna lewini")
+
+#Convert to presence absence: (FOO)
+Combined_Gal_Shark_Diet.ps.SH.PA <- phyloseq_standardize_otu_abundance(Combined_Gal_Shark_Diet.ps.SH, method = "pa")
+
+# Prune taxa with zero abundance across all samples
+Combined_Gal_Shark_Diet.ps.SH.PA <- prune_taxa(
+  taxa_sums(Combined_Gal_Shark_Diet.ps.SH.PA) > 0, 
+  Combined_Gal_Shark_Diet.ps.SH.PA)
+
+#Put it into dataframes
+otu_df<-cbind(data.frame(otu_table(Combined_Gal_Shark_Diet.ps.SH.PA)))
+otu_df$otu<-rownames(otu_df)
+
+otu_df_long<-otu_df%>%
+  pivot_longer(cols = -otu,names_to = "sample",values_to = "presence")
+
+otu_df_long$sample <-gsub(pattern = ".",
+                          "-",
+                          x=otu_df_long$sample,
+                          fixed = TRUE)
+
+sample_df<-cbind(data.frame(sample_data(Combined_Gal_Shark_Diet.ps.SH.PA)))
+sample_df<-rownames_to_column(sample_df, var = "sample")
+sample_site_key<-sample_df%>%
+  select(sample,Species..scientific.name.)
+
+taxa_df<-cbind(data.frame(tax_table(Combined_Gal_Shark_Diet.ps.SH.PA)))
+taxa_df<-rownames_to_column(taxa_df,var="otu")
+otu_species_key<-taxa_df%>%
+  select(otu,family,genus,species)
+
+otu_df_long<-otu_df_long%>%
+  left_join(sample_site_key)%>%
+  left_join(otu_species_key)
+
+#group by different taxonomic levels (shark species)
+
+merge_shark.species_otu_counts<-otu_df_long%>%
+  group_by(Species..scientific.name.,species)%>%
+  summarise(total_count=sum(presence))%>%
+  ungroup()
+
+merge_shark.species_counts<-merge_shark.species_otu_counts%>%
+  group_by(Species..scientific.name.)%>%
+  mutate(total_site=sum(total_count))%>%
+  ungroup()%>%
+  mutate(rel_prct=(total_count/total_site)*100)
+
+View(merge_shark.species_counts)
+```
+
+POO percentages for just blacktips from PG and CB
+```{r}
+#Now only blacktips - this is FOO
+Combined_Gal_Shark_Diet.ps.BT<-subset_samples(Combined_Gal_Shark_Diet.ps,Species..scientific.name.=="Carcharhinus limbatus")
+
+#Convert to presence absence: (FOO)
+Combined_Gal_Shark_Diet.ps.BT.PA <- phyloseq_standardize_otu_abundance(Combined_Gal_Shark_Diet.ps.BT, method = "pa")
+
+# Prune taxa with zero abundance across all samples
+Combined_Gal_Shark_Diet.ps.BT.PA <- prune_taxa(
+  taxa_sums(Combined_Gal_Shark_Diet.ps.BT.PA) > 0, 
+  Combined_Gal_Shark_Diet.ps.BT.PA)
+
+#Put it into dataframes
+otu_df<-cbind(data.frame(otu_table(Combined_Gal_Shark_Diet.ps.BT.PA)))
+otu_df$otu<-rownames(otu_df)
+
+otu_df_long<-otu_df%>%
+  pivot_longer(cols = -otu,names_to = "sample",values_to = "presence")
+
+otu_df_long$sample <-gsub(pattern = ".",
+                          "-",
+                          x=otu_df_long$sample,
+                          fixed = TRUE)
+
+sample_df<-cbind(data.frame(sample_data(Combined_Gal_Shark_Diet.ps.BT.PA)))
+sample_df<-rownames_to_column(sample_df, var = "sample")
+sample_site_key<-sample_df%>%
+  select(sample,Species..scientific.name.)
+
+taxa_df<-cbind(data.frame(tax_table(Combined_Gal_Shark_Diet.ps.BT.PA)))
+taxa_df<-rownames_to_column(taxa_df,var="otu")
+otu_species_key<-taxa_df%>%
+  select(otu,family,genus,species)
+
+otu_df_long<-otu_df_long%>%
+  left_join(sample_site_key)%>%
+  left_join(otu_species_key)
+
+#group by different taxonomic levels (shark species)
+
+merge_shark.species_otu_counts<-otu_df_long%>%
+  group_by(Species..scientific.name.,species)%>%
+  summarise(total_count=sum(presence))%>%
+  ungroup()
+
+merge_shark.species_counts<-merge_shark.species_otu_counts%>%
+  group_by(Species..scientific.name.)%>%
+  mutate(total_site=sum(total_count))%>%
+  ungroup()%>%
+  mutate(rel_prct=(total_count/total_site)*100)
+
+View(merge_shark.species_counts)
+```
+
+POO percentages for just blacktips from PG, LS, CB, GR
+```{r}
+#Now only blacktips - this is FOO
+Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.BT<-subset_samples(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps,Species..scientific.name.=="Carcharhinus limbatus")
+
+#Convert to presence absence: (FOO)
+Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.BT.PA <- phyloseq_standardize_otu_abundance(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.BT, method = "pa")
+
+# Prune taxa with zero abundance across all samples
+Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.BT.PA <- prune_taxa(
+  taxa_sums(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.BT.PA) > 0, 
+  Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.BT.PA)
+
+#Put it into dataframes
+otu_df<-cbind(data.frame(otu_table(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.BT.PA)))
+otu_df$otu<-rownames(otu_df)
+
+otu_df_long<-otu_df%>%
+  pivot_longer(cols = -otu,names_to = "sample",values_to = "presence")
+
+otu_df_long$sample <-gsub(pattern = ".",
+                          "-",
+                          x=otu_df_long$sample,
+                          fixed = TRUE)
+
+sample_df<-cbind(data.frame(sample_data(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.BT.PA)))
+sample_df<-rownames_to_column(sample_df, var = "sample")
+sample_site_key<-sample_df%>%
+  select(sample,Species..scientific.name.)
+
+taxa_df<-cbind(data.frame(tax_table(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps.BT.PA)))
+taxa_df<-rownames_to_column(taxa_df,var="otu")
+otu_species_key<-taxa_df%>%
+  select(otu,family,genus,species)
+
+otu_df_long<-otu_df_long%>%
+  left_join(sample_site_key)%>%
+  left_join(otu_species_key)
+
+#group by different taxonomic levels (shark species)
+
+merge_shark.species_otu_counts<-otu_df_long%>%
+  group_by(Species..scientific.name.,species)%>%
+  summarise(total_count=sum(presence))%>%
+  ungroup()
+
+merge_shark.species_counts<-merge_shark.species_otu_counts%>%
+  group_by(Species..scientific.name.)%>%
+  mutate(total_site=sum(total_count))%>%
+  ungroup()%>%
+  mutate(rel_prct=(total_count/total_site)*100)
+
+View(merge_shark.species_counts)
+```
+
+POO percentages with all sharks combined
+```{r}
+#Convert to presence absence: (FOO)
+Combined_Gal_Shark_Diet.ps.PA <- phyloseq_standardize_otu_abundance(Combined_Gal_Shark_Diet.ps, method = "pa")
+
+#### Puerto Grande ####
+
+#Now only by site (Puerto Grande) - this is FOO
+Combined_Gal_Shark_Diet.ps.PA.PuertoGrande<-subset_samples(Combined_Gal_Shark_Diet.ps.PA,Site.Name=="Puerto Grande")
+
+# Prune taxa with zero abundance across all samples
+Combined_Gal_Shark_Diet.ps.PA.PuertoGrande <- prune_taxa(
+  taxa_sums(Combined_Gal_Shark_Diet.ps.PA.PuertoGrande) > 0, 
+  Combined_Gal_Shark_Diet.ps.PA.PuertoGrande)
+
+#Put it into dataframes
+otu_df<-cbind(data.frame(otu_table(Combined_Gal_Shark_Diet.ps.PA.PuertoGrande)))
+otu_df$otu<-rownames(otu_df)
+
+otu_df_long<-otu_df%>%
+  pivot_longer(cols = -otu,names_to = "sample",values_to = "presence")
+
+otu_df_long$sample <-gsub(pattern = ".",
+                          "-",
+                          x=otu_df_long$sample,
+                          fixed = TRUE)
+
+sample_df<-cbind(data.frame(sample_data(Combined_Gal_Shark_Diet.ps.PA.PuertoGrande)))
+sample_df<-rownames_to_column(sample_df, var = "sample")
+sample_site_key<-sample_df%>%
+  select(sample,Species..scientific.name.)
+
+taxa_df<-cbind(data.frame(tax_table(Combined_Gal_Shark_Diet.ps.PA.PuertoGrande)))
+taxa_df<-rownames_to_column(taxa_df,var="otu")
+otu_species_key<-taxa_df%>%
+  select(otu,family,genus,species)
+
+otu_df_long<-otu_df_long%>%
+  left_join(sample_site_key)%>%
+  left_join(otu_species_key)
+
+#group by different taxonomic levels (shark species)
+
+merge_shark.species_otu_counts<-otu_df_long%>%
+  group_by(Species..scientific.name.,species)%>%
+  summarise(total_count=sum(presence))%>%
+  ungroup()
+
+merge_shark.species_counts<-merge_shark.species_otu_counts%>%
+  group_by(Species..scientific.name.)%>%
+  mutate(total_site=sum(total_count))%>%
+  ungroup()%>%
+  mutate(rel_prct=(total_count/total_site)*100)
+
+View(merge_shark.species_counts)
+
+#Custom order the prey species (separate custaceans and fishes)
+# merge_shark.species_counts$species <- factor(
+#   merge_shark.species_counts$species,
+#   levels = c(
+#     "Achelous tuberculatus", "Calappa convexa", "Meiosquilla dawsoni",
+#     "Microcassiope xantusii", "Palaemon ritteri", "Abudefduf genus",
+#     "Actinopteri class", "Carcharhinus genus", "Cyprinodon variegatus",
+#     "Decapterus genus", "Lutjanus genus", "Mugil cephalus", "Mugil thoburni",
+#     "Muraena lentiginosa", "Sphoeroides annulatus",
+#     "Stegastes arcifrons", "Stegastes beebei"))
+
+#plot 
+POO_PG_plot <- ggplot(merge_shark.species_counts, aes(x = Species..scientific.name., y = rel_prct, fill = species)) +
+  geom_bar(stat = "identity", position = "stack", color = NA) +  # Remove borders
+  ylab("Relative Percent of Occurrence") +
+  xlab("Shark Species") +
+  theme_classic() +
+  theme(text = element_text(size = 11)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_manual(
+    values = c(
+      "Abudefduf genus" = "lightblue", "Achelous tuberculatus" = "tan",
+      "Actinopteri class" = "navyblue", "Amphipholis squamata" = "hotpink1", 
+      "Anisotremus scapularis" = "palegreen", "Calappa convexa" = "magenta4", "Caranx crysos" = "royalblue", 
+      "Carcharhinus genus" = "grey", "Decapterus genus" = "indianred4", 
+      "Euthynnus affinis" = "slategray2", "Fistularia commersonii" = "khaki", 
+      "Grapsus grapsus" = "tomato", "Hemiramphus lutkei" = "green3", 
+      "Lutjanus genus" = "aquamarine4", "Meiosquilla dawsoni" = "mediumpurple4", "Microcassiope xantusii" = "darkorange1", 
+      "Mugil cephalus" = "blue", "Mugil thoburni" = "purple", "Muraena lentiginosa" = "lightpink", 
+      "Pachygrapsus socius" = "goldenrod3", "Palaemon ritteri" = "coral3", "Sardinops genus" = "red", 
+      "Scarus ghobban" = "yellow", "Selar crumenophthalmus" = "slateblue1", 
+      "Semicossyphus pulcher" = "lawngreen", "Sphoeroides annulatus" = "lightseagreen", 
+      "Sphyrna lewini" = "yellowgreen", "Stegastes arcifrons" = "darkgreen", 
+      "Stegastes beebei" = "orange", "Teleophrys cristulipes" = "turquoise2", 
+      "Thunnus genus" = "darksalmon"),
+    labels = c(
+      "Abudefduf genus" = "Abudefduf spp. (sergeant-majors)",
+      "Achelous tuberculatus" = "Achelous tuberculatus (swimming crab)",
+      "Actinopteri class" = "Actinopteri (ray-finned fish)",
+      "Amphipholis squamata" = "Amphipholis squamata (dwarf brittle star)",
+      "Anisotremus scapularis" = "Anisotremus scapularis (Peruvian grunt)",
+      "Calappa convexa" = "Calappa convexa (shame faced crab)",
+      "Caranx crysos" = "Caranx crysos (blue runner)",
+      "Carcharhinus genus" = "Carcharhinus spp. (requiem sharks)",
+      "Decapterus genus" = "Decapterus spp. (jack)",
+      "Euthynnus affinis" = "Euthynnus affinis (mackerel tuna)",
+      "Fistularia commersonii" = "Fistularia commersonii (bluespotted conetfish)",
+      "Grapsus grapsus" = "Grapsus grapsus (Sally lightfoot crab)",
+      "Hemiramphus lutkei" = "Hemiramphus lutkei (Lutke's halfbeak)",
+      "Lutjanus genus" = "Lutjanus spp. (snapper)",
+      "Meiosquilla dawsoni" = "Meiosquilla dawsoni (mantis shrimp)",
+      "Microcassiope xantusii" = "Microcassiope xantusii (cassiope pebble crab)",
+      "Mugil cephalus" = "Mugil cephalus (flathead grey mullet)",
+      "Mugil thoburni" = "Mugil thoburni (Thoburn's mullet)",
+      "Muraena lentiginosa" = "Muraena lentiginosa (jewel eel)",
+      "Pachygrapsus socius" = "Pachygrapsus Socius (Pacific mottled shore crab)",
+      "Palaemon ritteri" = "Palaemon ritteri (Barred grass shrimp)",
+      "Sardinops genus" = "Sardinops spp. (sardine)",
+      "Scarus ghobban" = "Scarus ghobban (blue-barred parrotfish)",
+      "Selar crumenophthalmus" = "Selar crumenophthalmus (bigeye scad)",
+      "Semicossyphus pulcher" = "Semicossyphus pulcher (California sheephead)",
+      "Sphoeroides annulatus" = "Sphoeroides annulatus (bullseye puffer)",
+      "Sphyrna lewini" = "Sphyrna lewini (scalloped hammerhead shark)",
+      "Stegastes arcifrons" = "Stegastes arcifrons (yellowtail damselfish)",
+      "Stegastes beebei" = "Stegastes beebei (Galapagos ringtail damselfish)",
+      "Teleophrys cristulipes" = "Teleophrys cristulipes (spider crab)",
+      "Thunnus genus" = "Thunnus spp. (tuna)"))
+
+POO_PG_plot
+
+
+
+#### Cartago Bay ####
+
+#Now only by site (Cartago Bay) - this is FOO
+Combined_Gal_Shark_Diet.ps.PA.CartagoBay<-subset_samples(Combined_Gal_Shark_Diet.ps.PA,Site.Name=="Cartago Bay")
+
+# Prune taxa with zero abundance across all samples
+Combined_Gal_Shark_Diet.ps.PA.CartagoBay <- prune_taxa(
+  taxa_sums(Combined_Gal_Shark_Diet.ps.PA.CartagoBay) > 0, 
+  Combined_Gal_Shark_Diet.ps.PA.CartagoBay)
+
+#Put it into dataframes
+otu_df<-cbind(data.frame(otu_table(Combined_Gal_Shark_Diet.ps.PA.CartagoBay)))
+otu_df$otu<-rownames(otu_df)
+
+otu_df_long<-otu_df%>%
+  pivot_longer(cols = -otu,names_to = "sample",values_to = "presence")
+
+otu_df_long$sample <-gsub(pattern = ".",
+                          "-",
+                          x=otu_df_long$sample,
+                          fixed = TRUE)
+
+sample_df<-cbind(data.frame(sample_data(Combined_Gal_Shark_Diet.ps.PA.CartagoBay)))
+sample_df<-rownames_to_column(sample_df, var = "sample")
+sample_site_key<-sample_df%>%
+  select(sample,Species..scientific.name.)
+
+taxa_df<-cbind(data.frame(tax_table(Combined_Gal_Shark_Diet.ps.PA.CartagoBay)))
+taxa_df<-rownames_to_column(taxa_df,var="otu")
+otu_species_key<-taxa_df%>%
+  select(otu,family,genus,species)
+
+otu_df_long<-otu_df_long%>%
+  left_join(sample_site_key)%>%
+  left_join(otu_species_key)
+
+#group by different taxonomic levels (shark species)
+
+merge_shark.species_otu_counts<-otu_df_long%>%
+  group_by(Species..scientific.name.,species)%>%
+  summarise(total_count=sum(presence))%>%
+  ungroup()
+
+merge_shark.species_counts<-merge_shark.species_otu_counts%>%
+  group_by(Species..scientific.name.)%>%
+  mutate(total_site=sum(total_count))%>%
+  ungroup()%>%
+  mutate(rel_prct=(total_count/total_site)*100)
+
+View(merge_shark.species_counts)
+
+#Custom order the prey species (separate custaceans and fishes)
+# merge_shark.species_counts$species <- factor(
+#   merge_shark.species_counts$species,
+#   levels = c(
+#     "Achelous tuberculatus", "Calappa convexa", "Meiosquilla dawsoni",
+#     "Microcassiope xantusii", "Palaemon ritteri", "Abudefduf genus",
+#     "Actinopteri class", "Carcharhinus genus", "Cyprinodon variegatus",
+#     "Decapterus genus", "Lutjanus genus", "Mugil cephalus", "Mugil thoburni",
+#     "Muraena lentiginosa", "Sphoeroides annulatus",
+#     "Stegastes arcifrons", "Stegastes beebei"))
+
+#plot 
+POO_CB_plot <- ggplot(merge_shark.species_counts, aes(x = Species..scientific.name., y = rel_prct, fill = species)) +
+  geom_bar(stat = "identity", position = "stack", color = NA) +  # Remove borders
+  ylab("Relative Percent of Occurrence") +
+  xlab("Shark Species") +
+  theme_classic() +
+  theme(text = element_text(size = 11)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_manual(
+    values = c(
+      "Abudefduf genus" = "lightblue", "Achelous tuberculatus" = "tan",
+      "Actinopteri class" = "navyblue", "Amphipholis squamata" = "hotpink1", 
+      "Anisotremus scapularis" = "palegreen", "Calappa convexa" = "magenta4", "Caranx crysos" = "royalblue", 
+      "Carcharhinus genus" = "grey", "Decapterus genus" = "indianred4", 
+      "Euthynnus affinis" = "slategray2", "Fistularia commersonii" = "khaki", 
+      "Grapsus grapsus" = "tomato", "Hemiramphus lutkei" = "green3", 
+      "Lutjanus genus" = "aquamarine4", "Meiosquilla dawsoni" = "mediumpurple4", "Microcassiope xantusii" = "darkorange1", 
+      "Mugil cephalus" = "blue", "Mugil thoburni" = "purple", "Muraena lentiginosa" = "lightpink", 
+      "Pachygrapsus socius" = "goldenrod3", "Palaemon ritteri" = "coral3", "Sardinops genus" = "red", 
+      "Scarus ghobban" = "yellow", "Selar crumenophthalmus" = "slateblue1", 
+      "Semicossyphus pulcher" = "lawngreen", "Sphoeroides annulatus" = "lightseagreen", 
+      "Sphyrna lewini" = "yellowgreen", "Stegastes arcifrons" = "darkgreen", 
+      "Stegastes beebei" = "orange", "Teleophrys cristulipes" = "turquoise2", 
+      "Thunnus genus" = "darksalmon"),
+    labels = c(
+      "Abudefduf genus" = "Abudefduf spp. (sergeant-majors)", 
+      "Achelous tuberculatus" = "Achelous tuberculatus (swimming crab)",
+      "Actinopteri class" = "Actinopteri (ray-finned fish)",
+      "Amphipholis squamata" = "Amphipholis squamata (dwarf brittle star)",
+      "Anisotremus scapularis" = "Anisotremus scapularis (Peruvian grunt)",
+      "Calappa convexa" = "Calappa convexa (shame faced crab)",
+      "Caranx crysos" = "Caranx crysos (blue runner)",
+      "Carcharhinus genus" = "Carcharhinus spp. (requiem sharks)",
+      "Decapterus genus" = "Decapterus spp. (jack)",
+      "Euthynnus affinis" = "Euthynnus affinis (mackerel tuna)",
+      "Fistularia commersonii" = "Fistularia commersonii (bluespotted conetfish)",
+      "Grapsus grapsus" = "Grapsus grapsus (Sally lightfoot crab)",
+      "Hemiramphus lutkei" = "Hemiramphus lutkei (Lutke's halfbeak)",
+      "Lutjanus genus" = "Lutjanus spp. (snapper)",
+      "Meiosquilla dawsoni" = "Meiosquilla dawsoni (mantis shrimp)",
+      "Microcassiope xantusii" = "Microcassiope xantusii (cassiope pebble crab)",
+      "Mugil cephalus" = "Mugil cephalus (flathead grey mullet)",
+      "Mugil thoburni" = "Mugil thoburni (Thoburn's mullet)",
+      "Muraena lentiginosa" = "Muraena lentiginosa (jewel eel)",
+      "Pachygrapsus socius" = "Pachygrapsus Socius (Pacific mottled shore crab)",
+      "Palaemon ritteri" = "Palaemon ritteri (Barred grass shrimp)",
+      "Sardinops genus" = "Sardinops spp. (sardine)",
+      "Scarus ghobban" = "Scarus ghobban (blue-barred parrotfish)",
+      "Selar crumenophthalmus" = "Selar crumenophthalmus (bigeye scad)",
+      "Semicossyphus pulcher" = "Semicossyphus pulcher (California sheephead)",
+      "Sphoeroides annulatus" = "Sphoeroides annulatus (bullseye puffer)",
+      "Sphyrna lewini" = "Sphyrna lewini (scalloped hammerhead shark)",
+      "Stegastes arcifrons" = "Stegastes arcifrons (yellowtail damselfish)",
+      "Stegastes beebei" = "Stegastes beebei (Galapagos ringtail damselfish)",
+      "Teleophrys cristulipes" = "Teleophrys cristulipes (spider crab)",
+      "Thunnus genus" = "Thunnus spp. (tuna)"))
+
+POO_CB_plot
+
+#########################################################################################
+
+#Plot all together
+library(gridExtra)
+grid.arrange(POO_PG_plot, POO_CB_plot, ncol=1)
+library(gridExtra)
+
+grid.arrange(POO_PG_plot, POO_CB_plot, ncol = 1, heights = c(1, 1))
+
+
+library(ggplot2)
+library(cowplot)
+
+# Extract the legend from one of the plots
+legend <- get_legend(POO_PG_plot + theme(legend.position = "bottom"))
+
+# Remove the legends from both plots
+POO_PG_plot_no_legend <- POO_PG_plot + theme(legend.position = "none")
+POO_CB_plot_no_legend <- POO_CB_plot + theme(legend.position = "none")
+
+# Arrange the plots without the legend
+combined_plots <- plot_grid(POO_PG_plot_no_legend, POO_CB_plot_no_legend, 
+                            ncol = 1, align = "v", rel_heights = c(1, 1))
+
+# Add the legend below the combined plots
+final_plot <- plot_grid(combined_plots, legend, ncol = 1, rel_heights = c(1, 0.15))  # Adjust the 0.15 value for legend size
+
+# Display the final plot with a single shared legend
+final_plot
+```
+
+POO percentages with individual sharks (BC and PG)
+```{r}
+#Convert to presence absence: (FOO)
+Combined_Gal_Shark_Diet.ps.PA <- phyloseq_standardize_otu_abundance(Combined_Gal_Shark_Diet_filtered.ps, method = "pa")
+
+#### Scalloped hammerheads ####
+
+#Now only by shark species (Scalloped Hammerheads) - this is FOO
+Combined_Gal_Shark_Diet.ps.PA.SH<-subset_samples(Combined_Gal_Shark_Diet.ps.PA,Species..scientific.name.=="Sphyrna lewini")
+
+# Prune taxa with zero abundance across all samples
+Combined_Gal_Shark_Diet.ps.PA.SH <- prune_taxa(
+  taxa_sums(Combined_Gal_Shark_Diet.ps.PA.SH) > 0, 
+  Combined_Gal_Shark_Diet.ps.PA.SH)
+
+#Put it into dataframes
+otu_df<-cbind(data.frame(otu_table(Combined_Gal_Shark_Diet.ps.PA.SH)))
+otu_df$otu<-rownames(otu_df)
+
+otu_df_long<-otu_df%>%
+  pivot_longer(cols = -otu,names_to = "sample",values_to = "presence")
+
+otu_df_long$sample <-gsub(pattern = ".",
+                          "-",
+                          x=otu_df_long$sample,
+                          fixed = TRUE)
+
+sample_df<-cbind(data.frame(sample_data(Combined_Gal_Shark_Diet.ps.PA.SH)))
+sample_df<-rownames_to_column(sample_df, var = "sample")
+sample_site_key<-sample_df%>%
+  select(sample,sample_id)
+
+taxa_df<-cbind(data.frame(tax_table(Combined_Gal_Shark_Diet.ps.PA.SH)))
+taxa_df<-rownames_to_column(taxa_df,var="otu")
+otu_species_key<-taxa_df%>%
+  select(otu,family,genus,species)
+
+otu_df_long<-otu_df_long%>%
+  left_join(sample_site_key)%>%
+  left_join(otu_species_key)
+
+#group by different taxonomic levels (shark species)
+
+merge_shark.species_otu_counts<-otu_df_long%>%
+  group_by(sample_id,species)%>%
+  summarise(total_count=sum(presence))%>%
+  ungroup()
+
+merge_shark.species_counts<-merge_shark.species_otu_counts%>%
+  group_by(sample_id)%>%
+  mutate(total_site=sum(total_count))%>%
+  ungroup()%>%
+  mutate(rel_prct=(total_count/total_site)*100)
+
+View(merge_shark.species_counts)
+
+#Custom order the prey species (separate custaceans and fishes)
+# merge_shark.species_counts$species <- factor(
+#   merge_shark.species_counts$species,
+#   levels = c(
+#     "Achelous tuberculatus", "Calappa convexa", "Meiosquilla dawsoni",
+#     "Microcassiope xantusii", "Palaemon ritteri", "Abudefduf genus",
+#     "Actinopteri class", "Carcharhinus genus", "Cyprinodon variegatus",
+#     "Decapterus genus", "Lutjanus genus", "Mugil cephalus", "Mugil thoburni",
+#     "Muraena lentiginosa", "Sphoeroides annulatus",
+#     "Stegastes arcifrons", "Stegastes beebei"))
+
+#plot 
+POO_SH_plot <- ggplot(merge_shark.species_counts, aes(x = sample_id, y = rel_prct, fill = species)) +
+  geom_bar(stat = "identity", position = "stack", color = NA) +  # Remove borders
+  ylab("Relative Percent of Occurrence") +
+  xlab("Shark ID") +
+  theme_classic() +
+  theme(text = element_text(size = 11)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_manual(
+    values = c(
+      "Abudefduf genus" = "lightblue", "Achelous tuberculatus" = "tan",
+      "Actinopteri class" = "navyblue", "Amphipholis squamata" = "hotpink1", 
+      "Anisotremus scapularis" = "palegreen", "Calappa convexa" = "magenta4", "Caranx crysos" = "royalblue", 
+      "Carcharhinus genus" = "grey", "Decapterus genus" = "indianred4", 
+      "Euthynnus affinis" = "slategray2", "Fistularia commersonii" = "khaki", 
+      "Grapsus grapsus" = "tomato", "Hemiramphus lutkei" = "green3", 
+      "Lutjanus genus" = "aquamarine4", "Meiosquilla dawsoni" = "mediumpurple4", "Microcassiope xantusii" = "darkorange1", 
+      "Mugil cephalus" = "blue", "Mugil thoburni" = "purple", "Muraena lentiginosa" = "lightpink", 
+      "Pachygrapsus socius" = "goldenrod3", "Palaemon ritteri" = "coral3", "Sardinops genus" = "red", 
+      "Scarus ghobban" = "yellow", "Selar crumenophthalmus" = "slateblue1", 
+      "Semicossyphus pulcher" = "lawngreen", "Sphoeroides annulatus" = "lightseagreen", 
+      "Sphyrna lewini" = "yellowgreen", "Stegastes arcifrons" = "darkgreen", 
+      "Stegastes beebei" = "orange", "Teleophrys cristulipes" = "turquoise2", 
+      "Thunnus genus" = "darksalmon"),
+    labels = c(
+      "Abudefduf genus" = "Abudefduf spp. (sergeant-majors)", 
+      "Achelous tuberculatus" = "Achelous tuberculatus (swimming crab)",
+      "Actinopteri class" = "Actinopteri (ray-finned fish)",
+      "Amphipholis squamata" = "Amphipholis squamata (dwarf brittle star)",
+      "Anisotremus scapularis" = "Anisotremus scapularis (Peruvian grunt)",
+      "Calappa convexa" = "Calappa convexa (shame faced crab)",
+      "Caranx crysos" = "Caranx crysos (blue runner)",
+      "Carcharhinus genus" = "Carcharhinus spp. (requiem sharks)",
+      "Decapterus genus" = "Decapterus spp. (jack)",
+      "Euthynnus affinis" = "Euthynnus affinis (mackerel tuna)",
+      "Fistularia commersonii" = "Fistularia commersonii (bluespotted conetfish)",
+      "Grapsus grapsus" = "Grapsus grapsus (Sally lightfoot crab)",
+      "Hemiramphus lutkei" = "Hemiramphus lutkei (Lutke's halfbeak)",
+      "Lutjanus genus" = "Lutjanus spp. (snapper)",
+      "Meiosquilla dawsoni" = "Meiosquilla dawsoni (mantis shrimp)",
+      "Microcassiope xantusii" = "Microcassiope xantusii (cassiope pebble crab)",
+      "Mugil cephalus" = "Mugil cephalus (flathead grey mullet)",
+      "Mugil thoburni" = "Mugil thoburni (Thoburn's mullet)",
+      "Muraena lentiginosa" = "Muraena lentiginosa (jewel eel)",
+      "Pachygrapsus socius" = "Pachygrapsus Socius (Pacific mottled shore crab)",
+      "Palaemon ritteri" = "Palaemon ritteri (Barred grass shrimp)",
+      "Sardinops genus" = "Sardinops spp. (sardine)",
+      "Scarus ghobban" = "Scarus ghobban (blue-barred parrotfish)",
+      "Selar crumenophthalmus" = "Selar crumenophthalmus (bigeye scad)",
+      "Semicossyphus pulcher" = "Semicossyphus pulcher (California sheephead)",
+      "Sphoeroides annulatus" = "Sphoeroides annulatus (bullseye puffer)",
+      "Sphyrna lewini" = "Sphyrna lewini (scalloped hammerhead shark)",
+      "Stegastes arcifrons" = "Stegastes arcifrons (yellowtail damselfish)",
+      "Stegastes beebei" = "Stegastes beebei (Galapagos ringtail damselfish)",
+      "Teleophrys cristulipes" = "Teleophrys cristulipes (spider crab)",
+      "Thunnus genus" = "Thunnus spp. (tuna)"))
+
+POO_SH_plot
+
+
+
+#### Cartago Bay ####
+
+#Now only by shark species (Blacktip) - this is FOO
+Combined_Gal_Shark_Diet.ps.PA.BT<-subset_samples(Combined_Gal_Shark_Diet_filtered.ps,Species..scientific.name.=="Carcharhinus limbatus")
+
+# Prune taxa with zero abundance across all samples
+Combined_Gal_Shark_Diet.ps.PA.BT <- prune_taxa(
+  taxa_sums(Combined_Gal_Shark_Diet.ps.PA.BT) > 0, 
+  Combined_Gal_Shark_Diet.ps.PA.BT)
+
+#Put it into dataframes
+otu_df<-cbind(data.frame(otu_table(Combined_Gal_Shark_Diet.ps.PA.BT)))
+otu_df$otu<-rownames(otu_df)
+
+otu_df_long<-otu_df%>%
+  pivot_longer(cols = -otu,names_to = "sample",values_to = "presence")
+
+otu_df_long$sample <-gsub(pattern = ".",
+                          "-",
+                          x=otu_df_long$sample,
+                          fixed = TRUE)
+
+sample_df<-cbind(data.frame(sample_data(Combined_Gal_Shark_Diet.ps.PA.BT)))
+sample_df<-rownames_to_column(sample_df, var = "sample")
+sample_site_key<-sample_df%>%
+  select(sample,sample_id)
+
+taxa_df<-cbind(data.frame(tax_table(Combined_Gal_Shark_Diet.ps.PA.BT)))
+taxa_df<-rownames_to_column(taxa_df,var="otu")
+otu_species_key<-taxa_df%>%
+  select(otu,family,genus,species)
+
+otu_df_long<-otu_df_long%>%
+  left_join(sample_site_key)%>%
+  left_join(otu_species_key)
+
+#group by different taxonomic levels (shark species)
+
+merge_shark.species_otu_counts<-otu_df_long%>%
+  group_by(sample_id,species)%>%
+  summarise(total_count=sum(presence))%>%
+  ungroup()
+
+merge_shark.species_counts<-merge_shark.species_otu_counts%>%
+  group_by(sample_id)%>%
+  mutate(total_site=sum(total_count))%>%
+  ungroup()%>%
+  mutate(rel_prct=(total_count/total_site)*100)
+
+View(merge_shark.species_counts)
+
+#Custom order the prey species (separate custaceans and fishes)
+# merge_shark.species_counts$species <- factor(
+#   merge_shark.species_counts$species,
+#   levels = c(
+#     "Achelous tuberculatus", "Calappa convexa", "Meiosquilla dawsoni",
+#     "Microcassiope xantusii", "Palaemon ritteri", "Abudefduf genus",
+#     "Actinopteri class", "Carcharhinus genus", "Cyprinodon variegatus",
+#     "Decapterus genus", "Lutjanus genus", "Mugil cephalus", "Mugil thoburni",
+#     "Muraena lentiginosa", "Sphoeroides annulatus",
+#     "Stegastes arcifrons", "Stegastes beebei"))
+
+#plot 
+POO_BT_plot <- ggplot(merge_shark.species_counts, aes(x = sample_id, y = rel_prct, fill = species)) +
+  geom_bar(stat = "identity", position = "stack", color = NA) +  # Remove borders
+  ylab("Relative Percent of Occurrence") +
+  xlab("Shark ID") +
+  theme_classic() +
+  theme(text = element_text(size = 11)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_manual(
+    values = c(
+      "Abudefduf genus" = "lightblue", "Achelous tuberculatus" = "tan",
+      "Actinopteri class" = "navyblue", "Amphipholis squamata" = "hotpink1", 
+      "Anisotremus scapularis" = "palegreen", "Calappa convexa" = "magenta4", "Caranx crysos" = "royalblue", 
+      "Carcharhinus genus" = "grey", "Decapterus genus" = "indianred4", 
+      "Euthynnus affinis" = "slategray2", "Fistularia commersonii" = "khaki", 
+      "Grapsus grapsus" = "tomato", "Hemiramphus lutkei" = "green3", 
+      "Lutjanus genus" = "aquamarine4", "Meiosquilla dawsoni" = "mediumpurple4", "Microcassiope xantusii" = "darkorange1", 
+      "Mugil cephalus" = "blue", "Mugil thoburni" = "purple", "Muraena lentiginosa" = "lightpink", 
+      "Pachygrapsus socius" = "goldenrod3", "Palaemon ritteri" = "coral3", "Sardinops genus" = "red", 
+      "Scarus ghobban" = "yellow", "Selar crumenophthalmus" = "slateblue1", 
+      "Semicossyphus pulcher" = "lawngreen", "Sphoeroides annulatus" = "lightseagreen", 
+      "Sphyrna lewini" = "yellowgreen", "Stegastes arcifrons" = "darkgreen", 
+      "Stegastes beebei" = "orange", "Teleophrys cristulipes" = "turquoise2", 
+      "Thunnus genus" = "darksalmon"),
+    labels = c(
+      "Abudefduf genus" = "Abudefduf spp. (sergeant-majors)", 
+      "Achelous tuberculatus" = "Achelous tuberculatus (swimming crab)",
+      "Actinopteri class" = "Actinopteri (ray-finned fish)",
+      "Amphipholis squamata" = "Amphipholis squamata (dwarf brittle star)",
+      "Anisotremus scapularis" = "Anisotremus scapularis (Peruvian grunt)",
+      "Calappa convexa" = "Calappa convexa (shame faced crab)",
+      "Caranx crysos" = "Caranx crysos (blue runner)",
+      "Carcharhinus genus" = "Carcharhinus spp. (requiem sharks)",
+      "Decapterus genus" = "Decapterus spp. (jack)",
+      "Euthynnus affinis" = "Euthynnus affinis (mackerel tuna)",
+      "Fistularia commersonii" = "Fistularia commersonii (bluespotted conetfish)",
+      "Grapsus grapsus" = "Grapsus grapsus (Sally lightfoot crab)",
+      "Hemiramphus lutkei" = "Hemiramphus lutkei (Lutke's halfbeak)",
+      "Lutjanus genus" = "Lutjanus spp. (snapper)",
+      "Meiosquilla dawsoni" = "Meiosquilla dawsoni (mantis shrimp)",
+      "Microcassiope xantusii" = "Microcassiope xantusii (cassiope pebble crab)",
+      "Mugil cephalus" = "Mugil cephalus (flathead grey mullet)",
+      "Mugil thoburni" = "Mugil thoburni (Thoburn's mullet)",
+      "Muraena lentiginosa" = "Muraena lentiginosa (jewel eel)",
+      "Pachygrapsus socius" = "Pachygrapsus Socius (Pacific mottled shore crab)",
+      "Palaemon ritteri" = "Palaemon ritteri (Barred grass shrimp)",
+      "Sardinops genus" = "Sardinops spp. (sardine)",
+      "Scarus ghobban" = "Scarus ghobban (blue-barred parrotfish)",
+      "Selar crumenophthalmus" = "Selar crumenophthalmus (bigeye scad)",
+      "Semicossyphus pulcher" = "Semicossyphus pulcher (California sheephead)",
+      "Sphoeroides annulatus" = "Sphoeroides annulatus (bullseye puffer)",
+      "Sphyrna lewini" = "Sphyrna lewini (scalloped hammerhead shark)",
+      "Stegastes arcifrons" = "Stegastes arcifrons (yellowtail damselfish)",
+      "Stegastes beebei" = "Stegastes beebei (Galapagos ringtail damselfish)",
+      "Teleophrys cristulipes" = "Teleophrys cristulipes (spider crab)",
+      "Thunnus genus" = "Thunnus spp. (tuna)"))
+
+POO_BT_plot
+
+#########################################################################################
+
+#Plot all together
+library(gridExtra)
+grid.arrange(POO_SH_plot, POO_BT_plot, ncol=1)
+library(gridExtra)
+
+grid.arrange(POO_SH_plot, POO_BT_plot, ncol = 1, heights = c(1, 1))
+
+
+library(ggplot2)
+library(cowplot)
+
+# Extract the legend from one of the plots
+legend <- get_legend(POO_SH_plot + theme(legend.position = "bottom"))
+
+# Remove the legends from both plots
+POO_SH_plot_no_legend <- POO_SH_plot + theme(legend.position = "none")
+POO_BT_plot_no_legend <- POO_BT_plot + theme(legend.position = "none")
+
+# Arrange the plots without the legend
+combined_plots <- plot_grid(POO_SH_plot_no_legend, POO_BT_plot_no_legend, 
+                            ncol = 1, align = "v", rel_heights = c(1, 1))
+
+# Add the legend below the combined plots
+final_plot <- plot_grid(combined_plots, legend, ncol = 1, rel_heights = c(1, 0.15))  # Adjust the 0.15 value for legend size
+
+# Display the final plot with a single shared legend
+final_plot
+```
+
+MDS Plots (prey taxa composition between sties)
+```{r}
+# Removing the NAs (anything that wasn't IDed to genus gets deleted here)
+Combined_Gal_Shark_Diet_filtered.ps_species.ps<-tax_glom(Combined_Gal_Shark_Diet_filtered.ps, taxrank = "species", NArm = TRUE)
+
+# play with ordinations interactively
+pseq_prey_species <- Combined_Gal_Shark_Diet_filtered.ps_species.ps %>%
+  phyloseq_validate()
+
+# MDS Plot (genus) - jsd, with circles
+pseq_prey_species %>%
+  tax_transform(rank = "species", trans = "compositional") %>%
+  dist_calc(dist = "jsd") %>%
+  ord_calc(method = "PCoA") %>% 
+  ord_plot(
+    axes = c(1, 2),
+    colour = "Species..scientific.name.",
+    fill = "Species..scientific.name.",
+    shape = "Site.Name",
+    alpha = 0.5,
+    size = 2
+  ) +
+  ggplot2::stat_ellipse(
+    ggplot2::aes(colour = Species..scientific.name.)
+  ) +
+  theme(
+    panel.grid = element_blank(),
+    panel.grid.major = element_blank())
+
+# MDS Plot (genus) - jsd, with circles
+pseq_prey_species %>%
+  tax_transform(rank = "species", trans = "compositional") %>%
+  dist_calc(dist = "jsd") %>%
+  ord_calc(method = "PCoA") %>% 
+  ord_plot(
+    axes = c(1, 2),
+    colour = "Site.Name",
+    fill = "Site.Name",
+    shape = "Species..scientific.name.",
+    alpha = 0.5,
+    size = 2
+  ) +
+  ggplot2::stat_ellipse(
+    ggplot2::aes(colour = Species..scientific.name.)
+  ) +
+  theme(
+    panel.grid = element_blank(),
+    panel.grid.major = element_blank())
+
+#PCA by site and shark species
+# Define a custom color palette (adjust as needed)
+my_colors <- c("Sphyrna lewini" = "yellowgreen", "Carcharhinus limbatus" = "royalblue")
+
+# Modify your plot pipeline
+pseq_prey_species %>%
+  tax_transform(rank = "genus", trans = "compositional") %>%
+  ord_calc(method = "auto") %>%
+  ord_plot(
+    axes = c(1, 2),
+    plot_taxa = 1:5,
+    colour = "Species..scientific.name.", 
+    fill = "Species..scientific.name.",
+    shape = "Site.Name", 
+    alpha = 0.5,
+    size = 2
+  ) +
+  scale_color_manual(values = my_colors) + 
+  scale_fill_manual(values = my_colors)
+
+
+
+##Stats - Between sites (no statistical difference in prey composition)
+jsd_dist_matrix <- phyloseq::distance(pseq_prey_species, method ="jsd")
+
+set.seed(200)
+permanova <- vegan::adonis2(jsd_dist_matrix ~ phyloseq::sample_data(pseq_prey_species)$Species..scientific.name.)
+permanova
+View(permanova)
+```
+
+Calculate Levin's niche width and Levin's niche overlap - Shark Species 
+```{r}
+# Merge data by site name
+Combined_Gal_Shark_Diet_filtered.ps_SharkSpecies <- merge_samples(Combined_Gal_Shark_Diet_filtered.ps, group = "Species..scientific.name.") 
+
+# Ensure the OTU table has samples as rows and taxa as columns
+Combined_Gal_Shark_Diet_filtered.ps_SharkSpecies_Reverse <- t(otu_table(Combined_Gal_Shark_Diet_filtered.ps_SharkSpecies, taxa_are_rows = TRUE))
+
+# Convert to a data frame
+Combined_Gal_Shark_Diet_filtered.ps_SharkSpecies_Reverse <- as.data.frame(Combined_Gal_Shark_Diet_filtered.ps_SharkSpecies_Reverse)
+
+# View the structure to confirm samples are rows
+View(Combined_Gal_Shark_Diet_filtered.ps_SharkSpecies_Reverse)
+
+# Calculate niche width for samples
+levins.niche.width_species <- niche.width(Combined_Gal_Shark_Diet_filtered.ps_SharkSpecies_Reverse, method = "levins")
+View(levins.niche.width_species)
+
+# Calculate niche overlap for samples
+levins.niche.overlap_species <- niche.overlap(Combined_Gal_Shark_Diet_filtered.ps_SharkSpecies_Reverse, method = "levins")
+print(levins.niche.overlap_species)
+```
+
+Calculate Levin's niche width - Scalloped hammerhead by site
+```{r}
+# Separate by shark species
+Combined_Gal_Shark_Diet_filtered.ps_SH<-subset_samples(Combined_Gal_Shark_Diet_filtered.ps,Species..scientific.name.=="Sphyrna lewini")
+View(Combined_Gal_Shark_Diet_filtered.ps_SH)
+
+# Merge data by site name
+Combined_Gal_Shark_Diet_filtered.ps_SH_stie <- merge_samples(Combined_Gal_Shark_Diet_filtered.ps_SH, group = "Site.Name")
+
+# Calculate richness
+richness_data <- estimate_richness(Combined_Gal_Shark_Diet_filtered.ps_SH_stie, measures = c("Observed"))
+
+# Print richness per sample
+print(richness_data)
+
+# Ensure the OTU table has samples as rows and taxa as columns
+Combined_Gal_Shark_Diet_filtered.ps_SH_stie_Reverse <- t(otu_table(Combined_Gal_Shark_Diet_filtered.ps_SH_stie, taxa_are_rows = TRUE))
+
+# Convert to a data frame
+Combined_Gal_Shark_Diet_filtered.ps_SH_stie_Reverse <- as.data.frame(Combined_Gal_Shark_Diet_filtered.ps_SH_stie_Reverse)
+
+# View the structure to confirm samples are rows
+View(Combined_Gal_Shark_Diet_filtered.ps_SH_stie_Reverse)
+
+# Calculate niche width for samples
+levins.niche.width_site <- niche.width(Combined_Gal_Shark_Diet_filtered.ps_SH_stie_Reverse, method = "levins")
+View(levins.niche.width_site)
+
+# Calculate niche overlap for samples
+levins.niche.overlap_site_SH <- niche.overlap(Combined_Gal_Shark_Diet_filtered.ps_SH_stie_Reverse, method = "levins")
+print(levins.niche.overlap_site_SH)
+```
+
+MDS Plots (prey taxa composition between sties) Scalloped hammerheads
+```{r}
+# Removing the NAs (anything that wasn't IDed to genus gets deleted here)
+Gal_Shark_Diet_edited.ps_species.ps<-tax_glom(Combined_Gal_Shark_Diet_filtered.ps_SH, taxrank = "species", NArm = TRUE)
+
+# play with ordinations interactively
+pseq_SH_prey_species <- Gal_Shark_Diet_edited.ps_species.ps %>%
+  phyloseq_validate()
+
+# MDS Plot (genus) - jsd, with circles
+pseq_SH_prey_species %>%
+  tax_transform(rank = "species", trans = "compositional") %>%
+  dist_calc(dist = "jsd") %>%
+  ord_calc(method = "PCoA") %>% 
+  ord_plot(
+    axes = c(1, 2),
+    colour = "Site.Name",
+    fill = "Site.Name",
+    shape = "circle",
+    alpha = 0.5,
+    size = 2
+  ) +
+  ggplot2::stat_ellipse(
+    ggplot2::aes(colour = Site.Name)
+  ) +
+  theme(
+    panel.grid = element_blank(),
+    panel.grid.major = element_blank())
+
+
+##Stats - Between sites (no statistical difference)
+jsd_dist_matrix <- phyloseq::distance(pseq_SH_prey_species, method ="jsd")
+
+set.seed(200)
+permanova <- vegan::adonis2(jsd_dist_matrix ~ phyloseq::sample_data(pseq_SH_prey_species)$Site.Name)
+permanova
+View(permanova)
+```
+
+Calculate Levin's niche width - blacktips by site (only PG and CB)
+```{r}
+# Separate by shark species
+Combined_Gal_Shark_Diet_filtered.ps_BT<-subset_samples(Combined_Gal_Shark_Diet_filtered.ps,Species..scientific.name.=="Carcharhinus limbatus")
+View(Combined_Gal_Shark_Diet_filtered.ps_BT)
+
+# Merge data by site name
+Combined_Gal_Shark_Diet_filtered.ps_BT_stie <- merge_samples(Combined_Gal_Shark_Diet_filtered.ps_BT, group = "Site.Name")
+
+# Calculate richness
+richness_data <- estimate_richness(Combined_Gal_Shark_Diet_filtered.ps_BT_stie, measures = c("Observed"))
+
+# Print richness per sample
+print(richness_data)
+
+# Ensure the OTU table has samples as rows and taxa as columns
+Combined_Gal_Shark_Diet_filtered.ps_BT_stie_Reverse <- t(otu_table(Combined_Gal_Shark_Diet_filtered.ps_BT_stie, taxa_are_rows = TRUE))
+
+# Convert to a data frame
+Combined_Gal_Shark_Diet_filtered.ps_BT_stie_Reverse <- as.data.frame(Combined_Gal_Shark_Diet_filtered.ps_BT_stie_Reverse)
+
+# View the structure to confirm samples are rows
+View(Combined_Gal_Shark_Diet_filtered.ps_BT_stie_Reverse)
+
+# Calculate niche width for samples
+levins.niche.width_site_BT <- niche.width(Combined_Gal_Shark_Diet_filtered.ps_BT_stie_Reverse, method = "levins")
+View(levins.niche.width_site_BT)
+
+# Calculate niche overlap for samples
+levins.niche.overlap_site_BT <- niche.overlap(Combined_Gal_Shark_Diet_filtered.ps_BT_stie_Reverse, method = "levins")
+print(levins.niche.overlap_site_BT)
+```
+
+MDS Plots (prey taxa composition between sties) Blacktips
+```{r}
+# Removing the NAs (anything that wasn't IDed to genus gets deleted here)
+Gal_Shark_Diet_edited.ps_species.ps<-tax_glom(Combined_Gal_Shark_Diet_filtered.ps_BT, taxrank = "species", NArm = TRUE)
+
+# play with ordinations interactively
+pseq_BT_prey_species <- Gal_Shark_Diet_edited.ps_species.ps %>%
+  phyloseq_validate()
+
+# MDS Plot (genus) - jsd, with circles
+pseq_BT_prey_species %>%
+  tax_transform(rank = "species", trans = "compositional") %>%
+  dist_calc(dist = "jsd") %>%
+  ord_calc(method = "PCoA") %>% 
+  ord_plot(
+    axes = c(1, 2),
+    colour = "Site.Name",
+    fill = "Site.Name",
+    shape = "circle",
+    alpha = 0.5,
+    size = 2
+  ) +
+  ggplot2::stat_ellipse(
+    ggplot2::aes(colour = Site.Name)
+  ) +
+  theme(
+    panel.grid = element_blank(),
+    panel.grid.major = element_blank())
+
+
+##Stats - Between sites (no statistical difference)
+jsd_dist_matrix <- phyloseq::distance(pseq_BT_prey_species, method ="jsd")
+
+set.seed(200)
+permanova <- vegan::adonis2(jsd_dist_matrix ~ phyloseq::sample_data(pseq_BT_prey_species)$Site.Name)
+permanova
+View(permanova)
+```
+
+MDS Plots (prey taxa composition per individual) Blacktips from PG and LS
+```{r}
+# Separate by shark species
+Combined_Gal_Shark_Diet_PGLS_filtered.ps_BT<-subset_samples(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps, Island=="San Cristobal")
+View(Combined_Gal_Shark_Diet_PGLS_filtered.ps_BT)
+
+# Removing the NAs (anything that wasn't IDed to genus gets deleted here)
+Combined_Gal_Shark_Diet_PGLS_filtered.ps_BT<-tax_glom(Combined_Gal_Shark_Diet_PGLS_filtered.ps_BT, taxrank = "species", NArm = TRUE)
+
+# play with ordinations interactively
+pseq_BT_prey_SanCristobal <- Combined_Gal_Shark_Diet_PGLS_filtered.ps_BT %>%
+  phyloseq_validate()
+
+# MDS Plot (genus) - jsd, with circles
+pseq_BT_prey_SanCristobal %>%
+  tax_transform(rank = "species", trans = "compositional") %>%
+  dist_calc(dist = "jsd") %>%
+  ord_calc(method = "PCoA") %>% 
+  ord_plot(
+    axes = c(1, 2),
+    colour = "Site.Name",
+    fill = "Site.Name",
+    shape = "circle",
+    alpha = 0.5,
+    size = 2
+  ) +
+  ggplot2::stat_ellipse(
+    ggplot2::aes(colour = Site.Name)
+  ) +
+  theme(
+    panel.grid = element_blank(),
+    panel.grid.major = element_blank())
+```
+
+Calculate Levin's niche width - blacktips by site
+```{r}
+# Separate by shark species
+Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT<-subset_samples(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps,Species..scientific.name.=="Carcharhinus limbatus")
+View(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT)
+
+# Merge data by site name
+Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT_stie <- merge_samples(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT, group = "Site.Name")
+
+# Calculate richness
+richness_data <- estimate_richness(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT_stie, measures = c("Observed"))
+
+# Print richness per sample
+print(richness_data)
+
+# Ensure the OTU table has samples as rows and taxa as columns
+Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT_stie_Reverse <- t(otu_table(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT_stie, taxa_are_rows = TRUE))
+
+# Convert to a data frame
+Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT_stie_Reverse <- as.data.frame(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT_stie_Reverse)
+
+# View the structure to confirm samples are rows
+View(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT_stie_Reverse)
+
+# Calculate niche width for samples
+levins.niche.width_site_BT <- niche.width(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT_stie_Reverse, method = "levins")
+View(levins.niche.width_site_BT)
+```
+
+Calculate Levin's niche width - blacktips by individual to look at individual specialization
+```{r}
+# Separate by shark species
+Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT<-subset_samples(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps,Species..scientific.name.=="Carcharhinus limbatus")
+View(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT)
+
+# Merge data by site name
+Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT_individual <- merge_samples(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT, group = "sample_id")
+
+# Calculate richness
+richness_data <- estimate_richness(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT_individual, measures = c("Observed"))
+
+# Print richness per sample
+print(richness_data)
+
+# Ensure the OTU table has samples as rows and taxa as columns
+Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT_individual_Reverse <- t(otu_table(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT_individual, taxa_are_rows = TRUE))
+
+# Convert to a data frame
+Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT_individual_Reverse <- as.data.frame(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT_individual_Reverse)
+
+# View the structure to confirm samples are rows
+View(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT_individual_Reverse)
+
+# Calculate niche width for samples
+levins.niche.width_individual_BT <- niche.width(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps_BT_individual_Reverse, method = "levins")
+View(levins.niche.width_individual_BT)
+```
+
+Richness Boxplot (only sharded nurseries)
+```{r}
+library(RColorBrewer)
+species.richness_shark.species <- plot_richness(
+  Combined_Gal_Shark_Diet_filtered.ps,
+  x = "Site.Name",
+  color = "Species..scientific.name.",
+  measures = c("Observed")
+) +
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +  # Slightly transparent boxplot, hide outliers
+  geom_jitter(width = 0.2, size = 2, alpha = 0.8) +  # Jitter points for visibility
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 0)) +
+  scale_color_brewer(palette = "Set2")
+
+species.richness_shark.species
+```
+
+Richness Boxplot (all four bays)
+```{r}
+library(RColorBrewer)
+
+species.richness_all.sites <- plot_richness(
+  Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps,
+  x = "Site.Name",
+  color = "Species..scientific.name.",
+  measures = c("Observed")
+) +
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +  # Slightly transparent boxplot, hide outliers
+  geom_jitter(width = 0.2, size = 2, alpha = 0.8) +  # Jitter points for visibility
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 0)) +
+  scale_color_brewer(palette = "Set2")
+
+species.richness_all.sites
+
+
+#####Now calculate with 95% CI
+library(phyloseq)
+library(dplyr)
+library(ggplot2)
+
+# Calculate observed richness from phyloseq object
+richness_data <- estimate_richness(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps, measures = "Observed")
+
+# Extract sample metadata (Site Name & Island info)
+sample_metadata <- as.data.frame(sample_data(Combined_Gal_Shark_Diet_PGCBLSGR_filtered.ps))
+
+# Merge richness data with metadata
+richness_data$Site.Name <- sample_metadata$Site.Name
+richness_data$Species..scientific.name. <- sample_metadata$Species..scientific.name.
+
+# Compute summary statistics per site-shark species combo
+richness_summary <- richness_data %>%
+  group_by(Site.Name, Species..scientific.name.) %>%
+  summarise(
+    mean_richness = mean(Observed, na.rm = TRUE),
+    sd_richness = sd(Observed, na.rm = TRUE),
+    n = n(),
+    se = sd_richness / sqrt(n),
+    lower_CI = mean_richness - (1.96 * se),
+    upper_CI = mean_richness + (1.96 * se),
+    .groups = "drop"
+  )
+
+print(richness_summary)  # Check the calculated confidence intervals
+
+# Define a custom order for the x-axis (keeping shark species within the same site together)
+custom_x_order <- richness_data %>%
+  arrange(Site.Name, Species..scientific.name.) %>%  # Sort by Site first, then species
+  mutate(x_factor = factor(interaction(Site.Name, Species..scientific.name.), 
+                           levels = unique(interaction(Site.Name, Species..scientific.name.))))  # Set factor levels
+
+# Update the richness summary to match the new order
+richness_summary <- richness_summary %>%
+  mutate(x_factor = factor(interaction(Site.Name, Species..scientific.name.), 
+                           levels = levels(custom_x_order$x_factor)))  # Ensure same ordering
+
+# Create base ggplot with the ordered x-axis
+species_richness_plot <- ggplot(custom_x_order, aes(
+  x = x_factor,  # Use the ordered factor for x-axis
+  y = Observed,
+  color = Species..scientific.name.
+)) +
+  geom_jitter(size = 2, alpha = 0.8, width = 0.2) +  # Jitter points for individual sharks
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +  # Boxplot for spread
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_color_brewer(palette = "Set2") +
+  scale_x_discrete(name = "Site & Shark Species") +  # Keep site-species labels
+  labs(y = "Observed Richness")
+
+# Add confidence interval error bars
+species_richness_plot <- species_richness_plot +
+  geom_errorbar(
+    data = richness_summary,
+    aes(
+      x = x_factor, 
+      ymin = lower_CI, 
+      ymax = upper_CI, 
+      color = Species..scientific.name.
+    ),
+    width = 0.2, inherit.aes = FALSE, color = "grey"
+  ) +
+  geom_point(  # Add mean points for clarity
+    data = richness_summary,
+    aes(
+      x = x_factor, 
+      y = mean_richness, 
+      color = Species..scientific.name.
+    ),
+    size = 3, 
+    shape = 18  # Triangle shape for means
+  )
+
+species_richness_plot
+```
+
+ANOVA comparing the richness between shark species and nursery bay
+```{r}
+# Calculate richness (Observed richness as an example)
+alpha_div <- estimate_richness(Combined_Gal_Shark_Diet_filtered.ps, measures = "Observed")
+
+# Convert sample metadata to a dataframe
+metadata <- as.data.frame(sample_data(Combined_Gal_Shark_Diet_filtered.ps))
+
+# Combine richness and metadata
+alpha_data <- cbind(metadata, Observed = alpha_div$Observed)
+
+# Run two-way ANOVA (Shark species & Site)
+anova_result <- aov(Observed ~ Species..scientific.name. * Site.Name, data = alpha_data)
+
+# View results
+summary(anova_result)
+```
+
+Rarefaction curve - SH
+```{r}
+Rarefaction_SH <- read.csv("Rarefaction_Gal_SH.csv")
+#View(Rarefaction_SH)
+
+#Switch axis
+Rarefaction_SH_Reverse <- data.frame(t(Rarefaction_SH[-1]))
+colnames(Rarefaction_SH_Reverse) <- Rarefaction_SH[, 1]
+View(Rarefaction_SH_Reverse)
+
+sample_data(Rarefaction_SH_Reverse)
+summary(Rarefaction_SH_Reverse)
+attach(Rarefaction_SH_Reverse)
+names(Rarefaction_SH_Reverse)
+
+#ci=2 means that the CI is 95%
+sp_SH <- specaccum(Rarefaction_SH_Reverse, object="prey taxa", permutations = 100, ci=2)
+#View(sp_BT)
+
+plot(sp_SH, ylab="Number of Prey Taxa", xlab="Number of samples",col="black",ci.type="poly", ci.col="grey", ci.lty = 0,
+     xlim=c(1, 32), ylim=c(1, 20))
+```
+
+Rarefaction curve - BT (PG and CB)
+```{r}
+Rarefaction_BT_PGCB <- read.csv("Rarefaction_Gal_BT_PGCB.csv")
+#View(Rarefaction_BT_PGCB)
+
+#Switch axis
+Rarefaction_BT_PGCB_Reverse <- data.frame(t(Rarefaction_BT_PGCB[-1]))
+colnames(Rarefaction_BT_PGCB_Reverse) <- Rarefaction_BT_PGCB[, 1]
+View(Rarefaction_BT_PGCB_Reverse)
+
+sample_data(Rarefaction_BT_PGCB_Reverse)
+summary(Rarefaction_BT_PGCB_Reverse)
+attach(Rarefaction_BT_PGCB_Reverse)
+names(Rarefaction_BT_PGCB_Reverse)
+
+#ci=2 means that the CI is 95%
+sp_BT <- specaccum(Rarefaction_BT_PGCB_Reverse, object="prey taxa", permutations = 100, ci=2)
+#View(sp_BT)
+
+plot(sp_BT, ylab="Number of Prey Taxa", xlab="Number of samples",col="black",ci.type="poly", ci.col="grey", ci.lty = 0,
+     xlim=c(1, 32), ylim=c(1, 20)) 
+```
+```{r}
+#Plot all samples together
+#Need to highlight both lines and run them together with command return
+#ci=2 means that the CI is 95%
+sp_SH <- specaccum(Rarefaction_SH_Reverse, object="prey taxa", permutations = 100, ci=2)
+sp_BT <- specaccum(Rarefaction_BT_PGCB_Reverse, object="prey taxa", permutations = 100, ci=2)
+
+
+#Need to highlight both lines and run them together with command return
+plot(sp_SH, ylab="Number of Prey Taxa", xlab="Number of samples",col="blue",ci.type="poly", ci.col="lightblue", ci.lty = 0,
+     xlim=c(1, 32), ylim=c(1, 20))  
+lines(sp_BT,col="darkgreen", ci.type="poly", ci.col=(rgb(0,1,0, alpha=0.3)), ci.lty = 0)
+```
