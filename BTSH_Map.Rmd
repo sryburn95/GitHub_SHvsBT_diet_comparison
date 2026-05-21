@@ -1,0 +1,49 @@
+---
+title: "SHvsBT_Map"
+author: "Savannah Ryburn"
+date: "2026-05-21"
+output: html_document
+---
+
+```{r}
+#install.packages("sf")
+
+library(sf) # to import shapefile
+library(dplyr) 
+library(ggplot2)
+library(plyr)
+```
+
+```{r}
+Galapagos_Map <- st_read("/Users/savannahryburn/Desktop/Galapagos_2021_Diet/Map/islas.shp")
+
+BlacktipBays <- read.csv("/Users/savannahryburn/Desktop/Chapter4/Galapagos_BTSH_Bays.csv")
+
+lat <- round(BlacktipBays$Lat, 
+             digits = 2)
+lon <- round(BlacktipBays$Long,
+             digits = 2)
+
+Map_Gal <- 
+  ggplot() +
+  geom_sf(data = Galapagos_Map, color = NA, fill = "grey", linewidth = 0.3) + # Set color to NA to remove outline
+  coord_sf(xlim = c(-92, -89), ylim = c(-1.5, 0.5), expand = FALSE) +
+  geom_point(data = BlacktipBays, aes(x = Long, y = Lat, color = Bay_Name, shape = Shark_species), size = 2.5) +
+  annotate("text", x = -89.55, y = -0.9, 
+           label = "San Cristóbal",
+           size = 2, hjust = 0) +
+  annotate("text", x = -91.3, y = -0.9, 
+           label = "Isabela",
+           size = 2, hjust = 0) +
+  annotate("text", x = -91.64, y = -0.38, 
+           label = "Fernandina",
+           size = 2, hjust = 0) +
+  annotate("text", x = -90.8, y = -0.25, 
+           label = "Santiago",
+           size = 2, hjust = 0) +
+  labs(y = "", x = "",color = "Shark Nursery Bays", shape = "Shark Species Present") +
+  theme_classic() +
+  scale_color_manual(values = c("Cartago Bay" = "tomato", "Grimanesa" = "slateblue1", "La Seca" = "darkorange", "Puerto Grande" = "forestgreen"))
+
+Map_Gal
+```
